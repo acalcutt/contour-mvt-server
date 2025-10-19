@@ -253,7 +253,7 @@ npm run dev
 
 ## License
 
-MIT
+BSD 2-Clause License
 
 ## Credits
 
