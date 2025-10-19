@@ -2,16 +2,6 @@ name: 'Build, Test, Release'
 
 on:
   workflow_dispatch:
-    inputs:
-      docker_user:
-        description: 'Docker Username'
-        required: true
-      docker_token:
-        description: 'Docker Token'
-        required: true
-      npm_token:
-        description: 'NPM Token'
-        required: true
 
 env:
   DOCKER_IMAGE_NAME: wifidb/contour-mvt-server
@@ -32,8 +22,8 @@ jobs:
           check-latest: true
           cache: 'npm'
 
-      - name: npm install semver
-        run: npm install semver
+      - name: Install NPM dependencies 🚀
+        run: npm ci --prefer-offline --no-audit
 
       - name: Check if version is published
         id: check
@@ -55,7 +45,7 @@ jobs:
 
     outputs:
       published: ${{ steps.check.outputs.published }}
-      version: ${{ steps.check.outputs.version }}
+      version: ${{ steps.check.outputs.current-version }}
 
   # Build and push individual architecture images (with tests)
   build_arch_images:
@@ -93,8 +83,8 @@ jobs:
       - name: Login to DockerHub
         uses: docker/login-action@v3
         with:
-          username: ${{ github.event.inputs.docker_user }}
-          password: ${{ github.event.inputs.docker_token }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Get release info
         id: release_info
@@ -155,7 +145,7 @@ jobs:
           npm config set //registry.npmjs.org/:_authToken ${NPM_TOKEN}
           npm publish --access public --tag ${{ steps.prepare_release.outputs.tag }}
         env:
-          NPM_TOKEN: ${{ github.event.inputs.npm_token }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       # Docker Manifest Creation
       - name: Set up Docker Buildx
@@ -164,8 +154,8 @@ jobs:
       - name: Login to DockerHub
         uses: docker/login-action@v3
         with:
-          username: ${{ github.event.inputs.docker_user }}
-          password: ${{ github.event.inputs.docker_token }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Create and push Main Multi-Arch Manifest
         run: |
