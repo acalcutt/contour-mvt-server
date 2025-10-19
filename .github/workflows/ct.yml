@@ -42,19 +42,6 @@ jobs:
       - name: Install NPM dependencies 🚀
         run: npm ci --prefer-offline --no-audit
 
-      - name: Get release type
-        id: prepare_release
-        run: |
-          currentVersion="$( node -e "console.log(require('./package.json').version)" )"
-          RELEASE_TYPE="$(node -e "console.log(require('semver').prerelease('$currentVersion') ? 'prerelease' : 'regular')")"
-          if [[ $RELEASE_TYPE == 'regular' ]]; then
-            echo "prerelease=false" >> "$GITHUB_OUTPUT"
-            echo "tag=latest" >> "$GITHUB_OUTPUT"
-          else
-            echo "prerelease=true" >> "$GITHUB_OUTPUT"
-            echo "tag=next" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Test NPM package
         run: npm pack --dry-run
 
