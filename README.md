@@ -11,19 +11,32 @@ A dedicated server for generating contour vector tiles from terrain data sources
 - 🌐 **CORS enabled** - Ready to use from web applications
 - 📦 **Standard tile format** - Outputs gzipped Mapbox Vector Tiles (.pbf)
 
-## Installation
+## Use from docker
 
 ```bash
-npm install
+wget https://raw.githubusercontent.com/acalcutt/contour-mvt-server/refs/heads/main/config.json
+docker run --rm -it -v $(pwd):/data -p 3000:3000 wifidb/contour-mvt-server:latest config.json
 ```
 
-## Usage
-
-Create a `config.json` file (see Configuration section below), then start the server:
+## Use from npm globally
 
 ```bash
+wget https://raw.githubusercontent.com/acalcutt/contour-mvt-server/refs/heads/main/config.json
+npm install -g contour-mvt-server
+contour-mvt-server config.json
+```
+
+## Use from source
+
+```bash
+git clone https://github.com/acalcutt/contour-mvt-server.git
+cd contour-mvt-server
+npm install
+wget https://raw.githubusercontent.com/acalcutt/contour-mvt-server/refs/heads/main/config.json
 node . config.json
 ```
+
+
 
 The server will start on port 3000 (or the port specified in your config) and display available endpoints.
 
@@ -257,4 +270,5 @@ Built with [maplibre-contour](https://github.com/onthegomap/maplibre-contour) by
 
 - [tileserver-gl](https://github.com/maptiler/tileserver-gl) - Vector and raster tile server
 - [contour-generator](https://github.com/acalcutt/contour-generator) - Batch contour tile generation tool
+
 
