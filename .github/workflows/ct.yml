@@ -55,8 +55,8 @@ jobs:
             echo "tag=next" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Test NPM publish (dry-run)
-        run: npm publish --dry-run --tag ${{ steps.prepare_release.outputs.tag }}-ci
+      - name: Test NPM package
+        run: npm pack --dry-run
 
       # Docker Build Setup
       - name: Set up Docker Buildx
