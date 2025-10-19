@@ -29,7 +29,9 @@ RUN npm ci && \
 
 COPY . .
 
-RUN mkdir -p /data && chown node:node /data
+RUN mkdir -p /data && \
+    chown node:node /data && \
+    chmod +x /usr/src/app/docker-entrypoint.sh
 
 VOLUME /data
 WORKDIR /data
