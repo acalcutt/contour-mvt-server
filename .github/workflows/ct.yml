@@ -45,7 +45,8 @@ jobs:
       - name: Get release type
         id: prepare_release
         run: |
-          RELEASE_TYPE="$(node -e "console.log(require('semver').prerelease('${{ needs.release-check.outputs.version }}') ? 'prerelease' : 'regular')")"
+          currentVersion="$( node -e "console.log(require('./package.json').version)" )"
+          RELEASE_TYPE="$(node -e "console.log(require('semver').prerelease('$currentVersion') ? 'prerelease' : 'regular')")"
           if [[ $RELEASE_TYPE == 'regular' ]]; then
             echo "prerelease=false" >> "$GITHUB_OUTPUT"
             echo "tag=latest" >> "$GITHUB_OUTPUT"
@@ -55,7 +56,7 @@ jobs:
           fi
 
       - name: Test NPM publish (dry-run)
-        run: run: npm publish --dry-run --tag ${{ steps.prepare_release.outputs.tag }}
+        run: npm publish --dry-run --tag ${{ steps.prepare_release.outputs.tag }}-ci
 
       # Docker Build Setup
       - name: Set up Docker Buildx
