@@ -22,13 +22,7 @@ npm install
 Create a `config.json` file (see Configuration section below), then start the server:
 
 ```bash
-node server.js config.json
-```
-
-Or use the default config file location:
-
-```bash
-node server.js
+node . config.json
 ```
 
 The server will start on port 3000 (or the port specified in your config) and display available endpoints.
@@ -263,3 +257,4 @@ Built with [maplibre-contour](https://github.com/onthegomap/maplibre-contour) by
 
 - [tileserver-gl](https://github.com/maptiler/tileserver-gl) - Vector and raster tile server
 - [contour-generator](https://github.com/acalcutt/contour-generator) - Batch contour tile generation tool
+
