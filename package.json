@@ -1,6 +1,6 @@
 {
   "name": "contour-mvt-server",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A dedicated server for generating contour vector tiles from terrain data",
   "type": "module",
   "main": "src/server.js",
@@ -24,7 +24,7 @@
   "dependencies": {
     "express": "^4.18.2",
     "maplibre-contour": "^0.1.0",
-    "patch-package": "8.0.0",
+    "patch-package": "^8.0.1",
     "sharp": "^0.33.0"
   },
   "devDependencies": {
