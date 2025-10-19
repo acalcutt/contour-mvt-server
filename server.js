@@ -5,10 +5,58 @@ import express from 'express';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { promisify } from 'util';
+import { gzip } from 'zlib';
 import mlcontour from 'maplibre-contour';
+import sharp from 'sharp';
+
+const gzipP = promisify(gzip);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Image decoder using sharp (adapted from mlcontour-adapter)
+async function GetImageData(blob, encoding, abortController) {
+  if (abortController?.signal?.aborted) {
+    throw new Error('Image processing was aborted.');
+  }
+  try {
+    const buffer = await blob.arrayBuffer();
+    const image = sharp(Buffer.from(buffer));
+
+    if (abortController?.signal?.aborted) {
+      throw new Error('Image processing was aborted.');
+    }
+
+    const { data, info } = await image
+      .ensureAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+
+    if (abortController?.signal?.aborted) {
+      throw new Error('Image processing was aborted.');
+    }
+    
+    const parsed = mlcontour.decodeParsedImage(
+      info.width,
+      info.height,
+      encoding,
+      data
+    );
+    
+    if (abortController?.signal?.aborted) {
+      throw new Error('Image processing was aborted.');
+    }
+
+    return parsed;
+  } catch (error) {
+    console.error('Error processing image:', error);
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error('An unknown error has occurred.');
+  }
+}
 
 const app = express();
 
@@ -85,32 +133,50 @@ function getContourOptions(source) {
 }
 
 // Get contour options for a specific zoom level (handles thresholds)
-function getOptionsForZoom(contourOptions, zoom) {
-  if (!contourOptions.thresholds) {
-    return contourOptions;
+// Adapted from mlcontour-adapter
+function getOptionsForZoom(options, zoom) {
+  const { thresholds, ...rest } = options;
+
+  if (!thresholds) {
+    return options;
   }
 
-  // Find the appropriate threshold for this zoom level
-  const zooms = Object.keys(contourOptions.thresholds)
-    .map(Number)
-    .sort((a, b) => a - b);
-  
-  let selectedZoom = zooms[0];
-  for (const z of zooms) {
-    if (zoom >= z) {
-      selectedZoom = z;
-    } else {
-      break;
+  let levels = [];
+  let maxLessThanOrEqualTo = -Infinity;
+
+  Object.entries(thresholds).forEach(([zString, value]) => {
+    const z = Number(zString);
+    if (z <= zoom && z > maxLessThanOrEqualTo) {
+      maxLessThanOrEqualTo = z;
+      levels = typeof value === 'number' ? [value] : value;
     }
-  }
+  });
 
-  const levels = contourOptions.thresholds[selectedZoom];
-  
   return {
-    ...contourOptions,
-    levels: levels,
-    thresholds: undefined
+    levels,
+    ...rest,
   };
+}
+
+// Node.js-compatible image decoder using sharp
+async function decodeImage(blob, encoding) {
+  try {
+    const buffer = Buffer.from(await blob.arrayBuffer());
+    const image = sharp(buffer);
+    const metadata = await image.metadata();
+    const { data, info } = await image
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+
+    return {
+      data: new Uint8ClampedArray(data),
+      width: info.width,
+      height: info.height,
+    };
+  } catch (error) {
+    console.error('Error decoding image:', error);
+    throw error;
+  }
 }
 
 // Initialize DEM managers for each source
@@ -127,6 +193,7 @@ function setupContourEndpoints(config) {
       maxzoom: source.maxzoom || 14,
       timeoutMs: source.timeoutMs || 10000,
       demUrlPattern: source.tiles[0], // Use first tile URL as pattern
+      decodeImage: GetImageData, // Use Node.js-compatible decoder
     };
     
     // Create LocalDemManager instance
@@ -225,19 +292,26 @@ app.get('/contours/:source/:z/:x/:y.pbf', async (req, res) => {
       new AbortController()
     );
     
-    if (!tile) {
+    if (!tile || !tile.arrayBuffer) {
       return res.status(204).send();
     }
     
-    // Convert to Buffer
-    const tileBuffer = Buffer.from(tile.arrayBuffer);
+    // Get the arrayBuffer property (not a method) and convert to Buffer
+    let data = Buffer.from(tile.arrayBuffer);
+    
+    // Gzip the data
+    data = await gzipP(data);
+    
+    // Log for debugging
+    console.log(`Generated tile ${source}/${z}/${x}/${y}: ${data.length} bytes (gzipped)`);
     
     // Set appropriate headers
     res.set('Content-Type', 'application/x-protobuf');
     res.set('Content-Encoding', 'gzip');
+    res.set('Content-Length', data.length.toString());
     res.set('Cache-Control', 'public, max-age=86400'); // Cache for 24 hours
     
-    res.send(tileBuffer);
+    res.send(data);
   } catch (error) {
     console.error(`Error generating contour tile ${source}/${z}/${x}/${y}:`, error);
     res.status(500).json({ error: 'Error generating contour tile' });
