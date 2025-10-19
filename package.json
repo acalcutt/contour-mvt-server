@@ -1,6 +1,6 @@
 {
   "name": "contour-mvt-server",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "A dedicated server for generating contour vector tiles from terrain data",
   "type": "module",
   "main": "src/server.js",

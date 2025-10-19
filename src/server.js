@@ -318,9 +318,35 @@ app.get('/contours/:source/:z/:x/:y.pbf', async (req, res) => {
   }
 });
 
-// Start server
+// Graceful shutdown handler
+let server;
+
+function gracefulShutdown(signal) {
+  console.log(`\n${signal} received, shutting down gracefully...`);
+  
+  if (server) {
+    server.close(() => {
+      console.log('Server closed');
+      process.exit(0);
+    });
+    
+    // Force shutdown after 10 seconds
+    setTimeout(() => {
+      console.error('Could not close connections in time, forcefully shutting down');
+      process.exit(1);
+    }, 10000);
+  } else {
+    process.exit(0);
+  }
+}
+
+// Handle signals
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+
+// Start server and save reference
 const port = config.server?.port || 3000;
-app.listen(port, () => {
+server = app.listen(port, () => {
   console.log(`\n🗺️  Contour Server running on port ${port}`);
   console.log(`   Health check: http://localhost:${port}/health`);
   console.log(`   Sources list: http://localhost:${port}/sources`);
