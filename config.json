@@ -27,8 +27,9 @@
     },
     "mapzen-detailed": {
       "type": "raster-dem",
-      "tiles": ["https://tile.mapzen.com/mapzen/terrain/v1/terrarium/{z}/{x}/{y}.png"],
+      "tiles": ["https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png"],
       "encoding": "terrarium",
+      "maxzoom": 15,
       "contours": {
         "multiplier": 1,
         "thresholds": {
