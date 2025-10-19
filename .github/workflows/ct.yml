@@ -4,7 +4,7 @@ on:
   workflow_call:
 
 permissions:
-  checks: write
+  checks: none
   contents: read
 
 env:
