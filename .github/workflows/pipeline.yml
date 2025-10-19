@@ -30,7 +30,6 @@ jobs:
   automerger:
     name: 'Automerge Dependabot PRs'
     needs:
-      - ci
       - ct
       - extract-branch
     if: >
