@@ -1,0 +1,68 @@
+name: 'Continuous Testing'
+
+on:
+  workflow_call:
+
+permissions:
+  checks: write
+  contents: read
+
+env:
+  LOCAL_BASE_IMAGE_NAME: test-contour-mvt-server
+
+jobs:
+  # Test and build individual architecture images locally
+  test_and_build_arch_images:
+    name: Test and Build ${{ matrix.arch }} Image
+    runs-on: ${{ matrix.runs-on }}
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runs-on: ubuntu-22.04
+            arch: amd64
+          - runs-on: ubuntu-22.04-arm
+            arch: arm64
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Get OS Architecture
+        run: uname -m
+
+      - name: Setup node env 📦
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: 'package.json'
+          check-latest: true
+          cache: 'npm'
+
+      - name: Install NPM dependencies 🚀
+        run: npm ci --prefer-offline --no-audit
+
+      - name: Test NPM publish (dry-run)
+        run: npm publish --dry-run
+
+      # Docker Build Setup
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Build Docker Image
+      - name: Build and tag ${{ matrix.arch }} main image locally
+        id: build_main_arch
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/${{ matrix.arch }}
+          tags: ${{ env.LOCAL_BASE_IMAGE_NAME }}:${{ matrix.arch }}
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Print main image info for ${{ matrix.arch }}
+        run: |
+          echo "Built and tagged main image locally for ${{ matrix.arch }} as ${{ env.LOCAL_BASE_IMAGE_NAME }}:${{ matrix.arch }}"
+          echo "Main image digest for ${{ matrix.arch }}: ${{ steps.build_main_arch.outputs.digest }}"
+

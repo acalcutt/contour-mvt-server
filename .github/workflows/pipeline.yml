@@ -1,0 +1,38 @@
+name: 'The Pipeline'
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+concurrency:
+  group: ci-${{ github.ref }}-1
+  cancel-in-progress: true
+
+jobs:
+  extract-branch:
+    name: 'Fetch branch'
+    runs-on: ubuntu-latest
+    outputs:
+      current_branch: ${{ steps.get-branch.outputs.current_branch }}
+    steps:
+      - name: Extract branch name 🕊
+        id: get-branch
+        run: echo "current_branch=${GITHUB_REF##*/}" >> $GITHUB_OUTPUT
+  ct:
+    name: 'CT'
+    needs:
+      - extract-branch
+    uses: ./.github/workflows/ct.yml
+  automerger:
+    name: 'Automerge Dependabot PRs'
+    needs:
+      - ci
+      - ct
+      - extract-branch
+    if: >
+      github.event_name == 'pull_request' && github.event.pull_request.user.login == 'dependabot[bot]'
+    uses: ./.github/workflows/automerger.yml
