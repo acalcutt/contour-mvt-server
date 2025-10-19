@@ -27,11 +27,3 @@ jobs:
     needs:
       - extract-branch
     uses: ./.github/workflows/ct.yml
-  automerger:
-    name: 'Automerge Dependabot PRs'
-    needs:
-      - ct
-      - extract-branch
-    if: >
-      github.event_name == 'pull_request' && github.event.pull_request.user.login == 'dependabot[bot]'
-    uses: ./.github/workflows/automerger.yml
