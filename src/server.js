@@ -1,5 +1,4 @@
-// contour-server - A dedicated server for generating contour vector tiles
-// Based on maplibre-contour
+#!/usr/bin/env node
 
 import express from 'express';
 import fs from 'fs';
