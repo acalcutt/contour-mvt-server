@@ -3,9 +3,11 @@
   "version": "1.0.0",
   "description": "A dedicated server for generating contour vector tiles from terrain data",
   "type": "module",
-  "main": "server.js",
+  "main": "src/server.js",
+  "bin": {
+    "contour-mvt-server": "src/server.js"
+  },
   "scripts": {
-    "start": "node server.js",
     "patch": "patch-package",
     "postinstall": "npm run patch"
   },
