@@ -1,0 +1,65 @@
+{
+  "sources": {
+    "terrain-rgb": {
+      "type": "raster-dem",
+      "tiles": ["https://tiles.wifidb.net/data/Planet_Merged_Sparse_2024_z0-Z16_cubic_webp/{z}/{x}/{y}.webp"],
+      "encoding": "mapbox",
+      "maxzoom": 12,
+      "contours": {
+        "multiplier": 1,
+        "thresholds": {
+          "1": [600, 3000],
+          "4": [300, 1500],
+          "8": [150, 750],
+          "9": [80, 400],
+          "10": [40, 200],
+          "11": [20, 100],
+          "12": [10, 50],
+          "14": [5, 25],
+          "16": [1, 5]
+        },
+        "contourLayer": "contours",
+        "elevationKey": "ele",
+        "levelKey": "level",
+        "extent": 4096,
+        "buffer": 1
+      }
+    },
+    "mapzen-detailed": {
+      "type": "raster-dem",
+      "tiles": ["https://tile.mapzen.com/mapzen/terrain/v1/terrarium/{z}/{x}/{y}.png"],
+      "encoding": "terrarium",
+      "contours": {
+        "multiplier": 1,
+        "thresholds": {
+          "1": [600, 3000],
+          "4": [300, 1500],
+          "8": [150, 750],
+          "9": [80, 400],
+          "10": [40, 200],
+          "11": [20, 100],
+          "12": [10, 50],
+          "14": [5, 25],
+          "16": [1, 5]
+        },
+        "contourLayer": "contours",
+        "elevationKey": "ele",
+        "levelKey": "level",
+        "extent": 4096,
+        "buffer": 1
+      }
+    }
+  },
+  "endpoints": {
+    "/contours/terrain": "terrain-rgb",
+    "/contours/detailed": "mapzen-detailed"
+  },
+  "server": {
+    "port": 3000,
+    "cache": {
+      "enabled": true,
+      "type": "memory",
+      "maxSize": "500mb"
+    }
+  }
+}
