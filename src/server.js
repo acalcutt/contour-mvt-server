@@ -7,59 +7,33 @@ import { fileURLToPath } from 'url';
 import { promisify } from 'util';
 import { gzip } from 'zlib';
 import mlcontour from 'maplibre-contour';
-import sharp from 'sharp';
+import cors from 'cors';
+import {
+  openPMtiles,
+  getPMtilesTile,
+  pmtilesTester,
+  httpTester
+} from './pmtiles-utils.js';
+import {
+  openMBTiles,
+  getMBTilesTile,
+  mbtilesTester,
+} from './mbtiles-utils.js';
+import {
+  GetImageData,
+  createBlankTileImage,
+  parseZXYFromUrl,
+  getOptionsForZoom,
+} from './mlcontour-utils.js';
 
 const gzipP = promisify(gzip);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Image decoder using sharp (adapted from mlcontour-adapter)
-async function GetImageData(blob, encoding, abortController) {
-  if (abortController?.signal?.aborted) {
-    throw new Error('Image processing was aborted.');
-  }
-  try {
-    const buffer = await blob.arrayBuffer();
-    const image = sharp(Buffer.from(buffer));
-
-    if (abortController?.signal?.aborted) {
-      throw new Error('Image processing was aborted.');
-    }
-
-    const { data, info } = await image
-      .ensureAlpha()
-      .raw()
-      .toBuffer({ resolveWithObject: true });
-
-    if (abortController?.signal?.aborted) {
-      throw new Error('Image processing was aborted.');
-    }
-    
-    const parsed = mlcontour.decodeParsedImage(
-      info.width,
-      info.height,
-      encoding,
-      data
-    );
-    
-    if (abortController?.signal?.aborted) {
-      throw new Error('Image processing was aborted.');
-    }
-
-    return parsed;
-  } catch (error) {
-    console.error('Error processing image:', error);
-    if (error instanceof Error) {
-      throw error;
-    }
-    throw new Error('An unknown error has occurred.');
-  }
-}
-
 const app = express();
 
-// Default contour options
+// Default contour options (from your current server.js)
 const DEFAULT_CONTOUR_OPTIONS = {
   multiplier: 1,
   contourLayer: 'contours',
@@ -80,35 +54,68 @@ const DEFAULT_CONTOUR_OPTIONS = {
   }
 };
 
+// --- Global variables for parsed config and contour sources ---
+let config = {};
+let contourSources = {};
+let GLOBAL_BLANK_TILE_SETTINGS = {}; // New global variable for blank tile settings
+
 // Load and validate configuration
 function loadConfig(configPath) {
   try {
     const configFile = fs.readFileSync(configPath, 'utf8');
-    const config = JSON.parse(configFile);
+    const parsedConfig = JSON.parse(configFile);
     
-    // Validate config structure
-    if (!config.sources || Object.keys(config.sources).length === 0) {
+    if (!parsedConfig.sources || Object.keys(parsedConfig.sources).length === 0) {
       throw new Error('Config must contain at least one source');
     }
+
+    // Set global blank tile defaults
+    GLOBAL_BLANK_TILE_SETTINGS = {
+      blankTileNoDataValue: parsedConfig.blankTileNoDataValue ?? 0,
+      blankTileSize: parsedConfig.blankTileSize ?? 256, // Default to 256 if not specified
+      blankTileFormat: parsedConfig.blankTileFormat ?? 'png' // Default to 'png'
+    };
     
-    // Validate each source
-    for (const [name, source] of Object.entries(config.sources)) {
-      if (!source.tiles || !Array.isArray(source.tiles)) {
-        throw new Error(`Source "${name}" must have a tiles array`);
+    for (const [name, source] of Object.entries(parsedConfig.sources)) {
+      if (!source.tiles || !Array.isArray(source.tiles) || source.tiles.length === 0) {
+        throw new Error(`Source "${name}" must have a non-empty tiles array`);
       }
       if (!source.encoding) {
         throw new Error(`Source "${name}" must specify encoding (e.g., "terrarium" or "mapbox")`);
       }
       
-      // Validate contour options if present
+      const demUrl = source.tiles[0];
+
+      if (pmtilesTester.test(demUrl)) {
+        const actualPathOrUrl = demUrl.replace(pmtilesTester, "");
+        if (!actualPathOrUrl.startsWith('/') && !httpTester.test(actualPathOrUrl)) {
+          throw new Error(`Invalid PMTiles URL for source "${name}": ${demUrl}. Must be 'pmtiles:///local/path' or 'pmtiles://http(s)://url'`);
+        }
+      } else if (mbtilesTester.test(demUrl)) {
+        const actualPath = demUrl.replace(mbtilesTester, "");
+        if (!actualPath.startsWith('/')) {
+          throw new Error(`Invalid MBTiles URL for source "${name}": ${demUrl}. Must be 'mbtiles:///local/path'`);
+        }
+        if (!fs.existsSync(actualPath)) {
+          throw new Error(`MBTiles file not found for source "${name}": ${actualPath}`);
+        }
+      } else if (!httpTester.test(demUrl)) {
+        throw new Error(`Invalid DEM URL for source "${name}": ${demUrl}. Must start with 'pmtiles://', 'mbtiles://', 'http://', or 'https://'`);
+      }
+      
       if (source.contours) {
         if (source.contours.levels && source.contours.thresholds) {
           throw new Error(`Source "${name}" cannot specify both levels and thresholds`);
         }
       }
+
+      // Validate blank tile format if specified at source level
+      if (source.blankTileFormat && !['png', 'webp', 'jpeg'].includes(source.blankTileFormat)) {
+        throw new Error(`Source "${name}" has an invalid blankTileFormat: "${source.blankTileFormat}". Must be 'png', 'webp', or 'jpeg'.`);
+      }
     }
     
-    return config;
+    return parsedConfig;
   } catch (error) {
     console.error('Error loading config:', error.message);
     process.exit(1);
@@ -122,7 +129,6 @@ function getContourOptions(source) {
   if (source.contours) {
     Object.assign(options, source.contours);
     
-    // Remove thresholds if levels is specified
     if (source.contours.levels) {
       delete options.thresholds;
     }
@@ -131,102 +137,124 @@ function getContourOptions(source) {
   return options;
 }
 
-// Get contour options for a specific zoom level (handles thresholds)
-// Adapted from mlcontour-adapter
-function getOptionsForZoom(options, zoom) {
-  const { thresholds, ...rest } = options;
-
-  if (!thresholds) {
-    return options;
-  }
-
-  let levels = [];
-  let maxLessThanOrEqualTo = -Infinity;
-
-  Object.entries(thresholds).forEach(([zString, value]) => {
-    const z = Number(zString);
-    if (z <= zoom && z > maxLessThanOrEqualTo) {
-      maxLessThanOrEqualTo = z;
-      levels = typeof value === 'number' ? [value] : value;
-    }
-  });
-
-  return {
-    levels,
-    ...rest,
-  };
-}
-
-// Node.js-compatible image decoder using sharp
-async function decodeImage(blob, encoding) {
-  try {
-    const buffer = Buffer.from(await blob.arrayBuffer());
-    const image = sharp(buffer);
-    const metadata = await image.metadata();
-    const { data, info } = await image
-      .raw()
-      .toBuffer({ resolveWithObject: true });
-
-    return {
-      data: new Uint8ClampedArray(data),
-      width: info.width,
-      height: info.height,
-    };
-  } catch (error) {
-    console.error('Error decoding image:', error);
-    throw error;
-  }
-}
+// Cache for opened PMTiles/MBTiles files
+const pmtilesCache = new Map();
+const mbtilesCache = new Map();
 
 // Initialize DEM managers for each source
-function setupContourEndpoints(config) {
-  const demManagers = {};
+async function setupContourEndpoints(currentConfig) { // Renamed param to avoid conflict
+  const currentContourSources = {}; // Renamed to avoid global conflict
   
-  for (const [sourceName, source] of Object.entries(config.sources)) {
+  for (const [sourceName, source] of Object.entries(currentConfig.sources)) {
     const contourOptions = getContourOptions(source);
+    const demUrl = source.tiles[0]; 
     
-    // Create DEM manager options
-    const demManagerOptions = {
+    let demManagerOptions = {
       cacheSize: source.cacheSize || 100,
       encoding: source.encoding,
       maxzoom: source.maxzoom || 14,
       timeoutMs: source.timeoutMs || 10000,
-      demUrlPattern: source.tiles[0], // Use first tile URL as pattern
-      decodeImage: GetImageData, // Use Node.js-compatible decoder
+      decodeImage: GetImageData,
     };
+
+    let pmtilesInstance = undefined;
+    let mbtilesHandle = undefined;
+
+    // Determine blank tile settings for this specific source, falling back to global defaults
+    const sourceBlankTileNoDataValue = source.blankTileNoDataValue ?? GLOBAL_BLANK_TILE_SETTINGS.blankTileNoDataValue;
+    const sourceBlankTileSize = source.blankTileSize ?? GLOBAL_BLANK_TILE_SETTINGS.blankTileSize;
+    const sourceBlankTileFormat = source.blankTileFormat ?? GLOBAL_BLANK_TILE_SETTINGS.blankTileFormat;
+
+
+    if (pmtilesTester.test(demUrl)) {
+      const pmtilesActualPathOrUrl = demUrl.replace(pmtilesTester, "");
+      pmtilesInstance = openPMtiles(pmtilesActualPathOrUrl);
+      pmtilesCache.set(sourceName, pmtilesInstance); 
+
+      demManagerOptions.getTile = async (url, abortController) => {
+        const zxy = parseZXYFromUrl(url); 
+        if (!zxy) {
+          throw new Error(`Could not extract ZXY from DEM URL for PMTiles: ${url}`);
+        }
+        const { data, mimeType } = await getPMtilesTile(pmtilesInstance, zxy.z, zxy.x, zxy.y);
+        
+        if (!data) {
+          console.warn(`PMTiles tile not found for ${sourceName} (${zxy.z}/${zxy.x}/${zxy.y}). Generating blank tile.`);
+          const blankTileBuffer = await createBlankTileImage(
+            sourceBlankTileSize,
+            sourceBlankTileSize,
+            sourceBlankTileNoDataValue,
+            source.encoding,
+            sourceBlankTileFormat,
+          );
+          return { data: new Blob([blankTileBuffer], { type: mimeType || `image/${sourceBlankTileFormat}` }), mimeType: mimeType || `image/${sourceBlankTileFormat}` };
+        }
+        return { data: new Blob([data], { type: mimeType || 'application/octet-stream' }), mimeType: mimeType };
+      };
+      demManagerOptions.demUrlPattern = '/{z}/{x}/{y}'; 
+      
+      console.log(`✓ Configured PMTiles contour source: ${sourceName} from ${pmtilesActualPathOrUrl}`);
+
+    } else if (mbtilesTester.test(demUrl)) {
+      const mbtilesActualPath = demUrl.replace(mbtilesTester, "");
+      mbtilesHandle = (await openMBTiles(mbtilesActualPath)).handle;
+      mbtilesCache.set(sourceName, mbtilesHandle); 
+
+      demManagerOptions.getTile = async (url, abortController) => {
+        const zxy = parseZXYFromUrl(url);
+        if (!zxy) {
+          throw new Error(`Could not extract ZXY from DEM URL for MBTiles: ${url}`);
+        }
+        const { data, contentType } = await getMBTilesTile(mbtilesHandle, zxy.z, zxy.x, zxy.y);
+        
+        if (!data) {
+          console.warn(`MBTiles tile not found for ${sourceName} (${zxy.z}/${zxy.x}/${zxy.y}). Generating blank tile.`);
+          const blankTileBuffer = await createBlankTileImage(
+            sourceBlankTileSize,
+            sourceBlankTileSize,
+            sourceBlankTileNoDataValue,
+            source.encoding,
+            sourceBlankTileFormat,
+          );
+          return { data: new Blob([blankTileBuffer], { type: contentType || `image/${sourceBlankTileFormat}` }), mimeType: contentType || `image/${sourceBlankTileFormat}` };
+        }
+        return { data: new Blob([data], { type: contentType || 'application/octet-stream' }), mimeType: contentType };
+      };
+      demManagerOptions.demUrlPattern = '/{z}/{x}/{y}'; 
+
+      console.log(`✓ Configured MBTiles contour source: ${sourceName} from ${mbtilesActualPath}`);
+
+    } else {
+      // Default HTTP DEM tile fetching (URLs starting with http(s)://)
+      demManagerOptions.demUrlPattern = demUrl;
+      console.log(`✓ Configured HTTP DEM contour source: ${sourceName} from ${demUrl}`);
+    }
     
-    // Create LocalDemManager instance
+    // Always create a LocalDemManager
     const manager = new mlcontour.LocalDemManager(demManagerOptions);
     
-    demManagers[sourceName] = {
+    currentContourSources[sourceName] = {
+      type: 'contour', 
       manager,
       contourOptions,
-      source
+      sourceConfig: source, 
     };
     
-    console.log(`✓ Configured contour endpoint: /contours/${sourceName}/{z}/{x}/{y}.pbf`);
+    console.log(`  -> Endpoint: /contours/${sourceName}/{z}/{x}/{y}.pbf`);
   }
   
-  return demManagers;
+  return currentContourSources;
 }
 
 // Main initialization
 const configPath = process.argv[2] || './config.json';
 console.log(`Loading configuration from: ${configPath}`);
 
-const config = loadConfig(configPath);
-const demManagers = setupContourEndpoints(config);
+config = loadConfig(configPath); // Assign to global config
+contourSources = await setupContourEndpoints(config); // Assign to global contourSources
 
 // CORS middleware
-app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type');
-  if (req.method === 'OPTIONS') {
-    return res.sendStatus(200);
-  }
-  next();
-});
+app.use(cors());
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -239,32 +267,36 @@ app.get('/health', (req, res) => {
 
 // List available sources
 app.get('/sources', (req, res) => {
-  const sources = {};
-  for (const [name, source] of Object.entries(config.sources)) {
-    sources[name] = {
-      tiles: source.tiles,
-      encoding: source.encoding,
-      maxzoom: source.maxzoom || 14,
-      contours: getContourOptions(source),
+  const sourcesInfo = {};
+  for (const [name, sourceData] of Object.entries(contourSources)) {
+    sourcesInfo[name] = {
+      type: sourceData.type,
+      tiles: sourceData.sourceConfig.tiles,
+      encoding: sourceData.sourceConfig.encoding,
+      maxzoom: sourceData.sourceConfig.maxzoom || 14,
+      contours: getContourOptions(sourceData.sourceConfig),
+      // Include blank tile settings in the source info for debugging/API users
+      blankTileNoDataValue: sourceData.sourceConfig.blankTileNoDataValue ?? GLOBAL_BLANK_TILE_SETTINGS.blankTileNoDataValue,
+      blankTileSize: sourceData.sourceConfig.blankTileSize ?? GLOBAL_BLANK_TILE_SETTINGS.blankTileSize,
+      blankTileFormat: sourceData.sourceConfig.blankTileFormat ?? GLOBAL_BLANK_TILE_SETTINGS.blankTileFormat,
       endpoint: `/contours/${name}/{z}/{x}/{y}.pbf`
     };
   }
-  res.json(sources);
+  res.json(sourcesInfo);
 });
 
-// Contour tile endpoint
+// Contour tile endpoint (remains largely the same, but simplified)
 app.get('/contours/:source/:z/:x/:y.pbf', async (req, res) => {
   const { source, z, x, y } = req.params;
   
-  // Check if source exists
-  if (!demManagers[source]) {
+  const sourceData = contourSources[source];
+  if (!sourceData) { 
     return res.status(404).json({
-      error: 'Source not found',
-      available: Object.keys(demManagers)
+      error: `Source "${source}" not found`,
+      available: Object.keys(contourSources)
     });
   }
   
-  // Parse coordinates
   const zoom = parseInt(z);
   const tileX = parseInt(x);
   const tileY = parseInt(y);
@@ -274,15 +306,13 @@ app.get('/contours/:source/:z/:x/:y.pbf', async (req, res) => {
   }
   
   try {
-    const { manager, contourOptions } = demManagers[source];
+    const { manager, contourOptions } = sourceData;
     
-    // Get zoom-specific options if using thresholds
     let tileOptions = contourOptions;
     if (contourOptions.thresholds) {
-      tileOptions = getOptionsForZoom(contourOptions, zoom);
+      tileOptions = getOptionsForZoom(contourOptions, zoom); 
     }
     
-    // Fetch contour tile from maplibre-contour
     const tile = await manager.fetchContourTile(
       zoom,
       tileX,
@@ -295,20 +325,15 @@ app.get('/contours/:source/:z/:x/:y.pbf', async (req, res) => {
       return res.status(204).send();
     }
     
-    // Get the arrayBuffer property (not a method) and convert to Buffer
     let data = Buffer.from(tile.arrayBuffer);
-    
-    // Gzip the data
     data = await gzipP(data);
     
-    // Log for debugging
-    console.log(`Generated tile ${source}/${z}/${x}/${y}: ${data.length} bytes (gzipped)`);
+    console.log(`Generated contour tile ${source}/${z}/${x}/${y}: ${data.length} bytes (gzipped)`);
     
-    // Set appropriate headers
     res.set('Content-Type', 'application/x-protobuf');
     res.set('Content-Encoding', 'gzip');
     res.set('Content-Length', data.length.toString());
-    res.set('Cache-Control', 'public, max-age=86400'); // Cache for 24 hours
+    //res.set('Cache-Control', 'public, max-age=86400');
     
     res.send(data);
   } catch (error) {
@@ -316,6 +341,7 @@ app.get('/contours/:source/:z/:x/:y.pbf', async (req, res) => {
     res.status(500).json({ error: 'Error generating contour tile' });
   }
 });
+
 
 // Graceful shutdown handler
 let server;
@@ -329,7 +355,6 @@ function gracefulShutdown(signal) {
       process.exit(0);
     });
     
-    // Force shutdown after 10 seconds
     setTimeout(() => {
       console.error('Could not close connections in time, forcefully shutting down');
       process.exit(1);
@@ -350,8 +375,9 @@ server = app.listen(port, () => {
   console.log(`   Health check: http://localhost:${port}/health`);
   console.log(`   Sources list: http://localhost:${port}/sources`);
   console.log('\nConfigured sources:');
-  Object.keys(config.sources).forEach(name => {
-    console.log(`   - ${name}: http://localhost:${port}/contours/${name}/{z}/{x}/{y}.pbf`);
+  Object.keys(contourSources).forEach(name => {
+    const sourceData = contourSources[name];
+    console.log(`   - ${name} (DEM: ${sourceData.sourceConfig.tiles[0]}): http://localhost:${port}/contours/${name}/{z}/{x}/{y}.pbf`);
   });
 });
 
