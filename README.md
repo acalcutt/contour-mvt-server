@@ -10,6 +10,7 @@ A dedicated server for generating contour vector tiles from terrain data sources
 - 🚀 **Fast and efficient** - Uses sharp for image processing and includes caching support
 - 🌐 **CORS enabled** - Ready to use from web applications
 - 📦 **Standard tile format** - Outputs gzipped Mapbox Vector Tiles (.pbf)
+- 📁 **Multiple source formats** - Supports HTTP(S) tile servers, PMTiles archives (local and remote), and MBTiles databases
 
 ## Use from docker
 
@@ -36,8 +37,6 @@ wget https://raw.githubusercontent.com/acalcutt/contour-mvt-server/refs/heads/ma
 node . config.json
 ```
 
-
-
 The server will start on port 3000 (or the port specified in your config) and display available endpoints.
 
 ## Configuration
@@ -46,9 +45,14 @@ Create a `config.json` file to define your terrain sources and contour options:
 
 ```json
 {
+  "server": {
+    "port": 3000
+  },
+  "blankTileNoDataValue": 0,
+  "blankTileSize": 256,
+  "blankTileFormat": "png",
   "sources": {
     "terrain-rgb": {
-      "type": "raster-dem",
       "tiles": [
         "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png"
       ],
@@ -65,9 +69,8 @@ Create a `config.json` file to define your terrain sources and contour options:
       }
     },
     "mapzen-detailed": {
-      "type": "raster-dem",
       "tiles": [
-        "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png"
+        "https://s3.amazonaws.com/elevation-ties-prod/terrarium/{z}/{x}/{y}.png"
       ],
       "encoding": "terrarium",
       "maxzoom": 14,
@@ -85,13 +88,97 @@ Create a `config.json` file to define your terrain sources and contour options:
           "16": [1, 5]
         }
       }
+    },
+    "terrain-pmtiles": {
+      "tiles": [
+        "pmtiles://https://example.com/terrain.pmtiles"
+      ],
+      "encoding": "terrarium",
+      "maxzoom": 14
+    },
+    "local-terrain": {
+      "tiles": [
+        "mbtiles:///var/data/terrain.mbtiles"
+      ],
+      "encoding": "mapbox",
+      "maxzoom": 12,
+      "blankTileNoDataValue": -10000
     }
-  },
-  "server": {
-    "port": 3000
   }
 }
 ```
+
+### Global Configuration Options
+
+The root level of the configuration file supports the following options:
+
+- **`server.port`** (number) - Port number for the server to listen on (default: `3000`)
+- **`blankTileNoDataValue`** (number) - Global default elevation value for blank tiles when DEM tile is missing (default: `0`)
+- **`blankTileSize`** (number) - Global default size (width/height) for generated blank tiles (default: `256`)
+- **`blankTileFormat`** (string) - Global default format for blank tiles: `"png"`, `"webp"`, or `"jpeg"` (default: `"png"`)
+
+These global settings apply to all sources unless overridden at the source level.
+
+### DEM Tile Source Formats
+
+The server supports multiple formats for DEM tile sources in the `tiles` array:
+
+#### HTTP/HTTPS Tile Servers
+
+Standard tile server URLs with `{z}`, `{x}`, `{y}` placeholders:
+
+```json
+{
+  "tiles": ["https://example.com/dem/{z}/{x}/{y}.png"]
+}
+```
+
+#### PMTiles Archives
+
+PMTiles archives can be served from local files or remote HTTP(S) URLs:
+
+**Remote PMTiles (HTTP/HTTPS):**
+```json
+{
+  "tiles": ["pmtiles://https://example.com/terrain.pmtiles"]
+}
+```
+
+**Local PMTiles (Linux/macOS):**
+```json
+{
+  "tiles": ["pmtiles:///absolute/path/to/terrain.pmtiles"]
+}
+```
+
+**Local PMTiles (Windows):**
+```json
+{
+  "tiles": ["pmtiles://C://path//to//terrain.pmtiles"]
+}
+```
+
+*Note: For Windows paths, use `//` as path separators in the pmtiles:// URL.*
+
+#### MBTiles Databases
+
+MBTiles databases (local files only):
+
+**Local MBTiles (Linux/macOS):**
+```json
+{
+  "tiles": ["mbtiles:///absolute/path/to/terrain.mbtiles"]
+}
+```
+
+**Local MBTiles (Windows):**
+```json
+{
+  "tiles": ["mbtiles://C://path//to//terrain.mbtiles"]
+}
+```
+
+*Note: For Windows paths, use `//` as path separators in the mbtiles:// URL.*
 
 ### Source Configuration
 
@@ -99,16 +186,50 @@ Each source in the `sources` object supports the following options:
 
 #### Required Options
 
-- **`tiles`** (array) - Array of tile URL templates (e.g., `["https://example.com/{z}/{x}/{y}.png"]`)
+- **`tiles`** (array) - Array of tile URLs. Only the first URL is used. Supports HTTP(S), PMTiles, and MBTiles formats
 - **`encoding`** (string) - DEM encoding format: `"terrarium"` or `"mapbox"`
 
 #### Optional Options
 
-- **`type`** (string) - Source type, typically `"raster-dem"` (default: `"raster-dem"`)
 - **`maxzoom`** (number) - Maximum zoom level of the source DEM (default: `14`)
-- **`tileSize`** (number) - Tile size in pixels (default: `256`)
-- **`cacheSize`** (number) - Number of tiles to cache in memory (default: `100`)
+- **`cacheSize`** (number) - Number of DEM tiles to cache in memory (default: `100`)
 - **`timeoutMs`** (number) - Timeout for fetching source tiles in milliseconds (default: `10000`)
+- **`blankTileNoDataValue`** (number) - Source-specific elevation value for blank tiles (overrides global setting)
+- **`blankTileSize`** (number) - Source-specific size for blank tiles (overrides global setting)
+- **`blankTileFormat`** (string) - Source-specific format for blank tiles: `"png"`, `"webp"`, or `"jpeg"` (overrides global setting)
+- **`contours`** (object) - Contour generation options (see below)
+
+### Blank Tile Handling
+
+When a DEM tile is missing from the source, the server generates a blank tile instead of failing. This behavior can be configured globally and per-source:
+
+- **Global defaults** apply to all sources unless overridden
+- **Source-specific settings** override global defaults for that source
+- Blank tiles use the specified `noDataValue` for all pixels
+- The encoding format determines how the elevation value is stored in the image
+
+Example configuration with blank tile settings:
+
+```json
+{
+  "blankTileNoDataValue": 0,
+  "blankTileSize": 256,
+  "blankTileFormat": "png",
+  "sources": {
+    "high-res-terrain": {
+      "tiles": ["pmtiles:///data/terrain-high.pmtiles"],
+      "encoding": "terrarium",
+      "blankTileNoDataValue": -32768,
+      "blankTileFormat": "webp"
+    },
+    "low-res-terrain": {
+      "tiles": ["mbtiles:///data/terrain-low.mbtiles"],
+      "encoding": "mapbox"
+      // Uses global blank tile settings
+    }
+  }
+}
+```
 
 ### Contour Options
 
@@ -138,7 +259,7 @@ The `thresholds` object maps zoom levels to contour intervals:
 }
 ```
 
-The server automatically selects the appropriate interval based on the tile's zoom level.
+The server automatically selects the appropriate interval based on the tile's zoom level. Each entry specifies `[minor_interval, major_interval]` in elevation units.
 
 ## API Endpoints
 
@@ -153,7 +274,6 @@ Returns a gzipped Mapbox Vector Tile containing contour lines for the specified 
 **Response Headers:**
 - `Content-Type: application/x-protobuf`
 - `Content-Encoding: gzip`
-- `Cache-Control: public, max-age=86400`
 
 ### Health Check
 
@@ -178,12 +298,13 @@ Returns server status and list of configured sources.
 GET /sources
 ```
 
-Returns detailed information about all configured sources.
+Returns detailed information about all configured sources, including their settings and endpoints.
 
 **Example Response:**
 ```json
 {
   "terrain-rgb": {
+    "type": "contour",
     "tiles": ["https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png"],
     "encoding": "terrarium",
     "maxzoom": 15,
@@ -196,6 +317,9 @@ Returns detailed information about all configured sources.
       "extent": 4096,
       "buffer": 1
     },
+    "blankTileNoDataValue": 0,
+    "blankTileSize": 256,
+    "blankTileFormat": "png",
     "endpoint": "/contours/terrain-rgb/{z}/{x}/{y}.pbf"
   }
 }
@@ -218,9 +342,10 @@ map.addLayer({
   type: 'line',
   source: 'contours',
   'source-layer': 'contours',
+  filter: ['>', ['get', 'ele'], 0],
   paint: {
-    'line-color': '#877b59',
-    'line-width': 1
+    'line-color': 'rgba(0,0,0, 50%)',
+    'line-width': ['match', ['get', 'level'], 1, 1, 0.5]
   }
 });
 
@@ -229,15 +354,18 @@ map.addLayer({
   type: 'symbol',
   source: 'contours',
   'source-layer': 'contours',
-  filter: ['==', ['get', 'level'], 1],
+  filter: [
+    'all',
+    ['>', ['get', 'ele'], 0],
+    ['==', ['get', 'level'], 1]
+  ],
   layout: {
     'symbol-placement': 'line',
-    'text-field': ['concat', ['get', 'ele'], 'm'],
+    'text-field': ['concat', ['number-format', ['get', 'ele'], {}], 'm'],
     'text-font': ['Open Sans Regular'],
-    'text-size': 10
+    'text-size': 11
   },
   paint: {
-    'text-color': '#877b59',
     'text-halo-color': '#fff',
     'text-halo-width': 1
   }
@@ -249,6 +377,8 @@ map.addLayer({
 - **express** - Web framework
 - **maplibre-contour** - Contour line generation
 - **sharp** - High-performance image processing
+- **pmtiles** - PMTiles archive support
+- **@mapbox/mbtiles** - MBTiles database support
 
 ## License
 
@@ -262,7 +392,3 @@ Built with [maplibre-contour](https://github.com/onthegomap/maplibre-contour) by
 
 - [tileserver-gl](https://github.com/maptiler/tileserver-gl) - Vector and raster tile server
 - [contour-generator](https://github.com/acalcutt/contour-generator) - Batch contour tile generation tool
-
-
-
-
