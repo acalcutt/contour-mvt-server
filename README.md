@@ -334,7 +334,7 @@ map.addSource('contours', {
   type: 'vector',
   tiles: ['http://localhost:3000/contours/terrain-rgb/{z}/{x}/{y}.pbf'],
   minzoom: 0,
-  maxzoom: 14
+  maxzoom: 16
 });
 
 map.addLayer({
@@ -392,3 +392,4 @@ Built with [maplibre-contour](https://github.com/onthegomap/maplibre-contour) by
 
 - [tileserver-gl](https://github.com/maptiler/tileserver-gl) - Vector and raster tile server
 - [contour-generator](https://github.com/acalcutt/contour-generator) - Batch contour tile generation tool
+
