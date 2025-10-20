@@ -51,7 +51,9 @@ Create a `config.json` file to define your terrain sources and contour options:
   "blankTileFormat": "png",
   "sources": {
     "terrain-rgb": {
-      "tiles": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png",
+      "tiles": [
+        "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png"
+      ],
       "encoding": "terrarium",
       "maxzoom": 15,
       "contours": {
@@ -65,7 +67,9 @@ Create a `config.json` file to define your terrain sources and contour options:
       }
     },
     "mapzen-detailed": {
-      "tiles": "https://s3.amazonaws.com/elevation-ties-prod/terrarium/{z}/{x}/{y}.png",
+      "tiles": [
+        "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png"
+      ],
       "encoding": "terrarium",
       "maxzoom": 15,
       "contours": {
@@ -302,7 +306,9 @@ Returns detailed information about all configured sources, including their setti
 {
   "terrain-rgb": {
     "type": "contour",
-    "tiles": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png",
+    "tiles": [
+      "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png"
+    ],
     "encoding": "terrarium",
     "maxzoom": 15,
     "contours": {

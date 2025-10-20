@@ -2,7 +2,9 @@
   "sources": {
     "mapzen-detailed": {
       "type": "raster-dem",
-      "tiles": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png",
+      "tiles": [
+        "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png"
+      ],
       "encoding": "terrarium",
       "maxzoom": 15,
       "contours": {
