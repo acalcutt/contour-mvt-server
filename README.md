@@ -7,8 +7,6 @@ A dedicated server for generating contour vector tiles from terrain data sources
 - 🗺️ **On-demand contour generation** - Generate contour vector tiles dynamically from raster terrain sources
 - ⚙️ **Flexible configuration** - Support for multiple terrain sources with customizable contour options
 - 🎯 **Zoom-dependent contours** - Configure different contour intervals for different zoom levels
-- 🚀 **Fast and efficient** - Uses sharp for image processing and includes caching support
-- 🌐 **CORS enabled** - Ready to use from web applications
 - 📦 **Standard tile format** - Outputs gzipped Mapbox Vector Tiles (.pbf)
 - 📁 **Multiple source formats** - Supports HTTP(S) tile servers, PMTiles archives (local and remote), and MBTiles databases
 
@@ -391,4 +389,5 @@ Built with [maplibre-contour](https://github.com/onthegomap/maplibre-contour) by
 
 - [tileserver-gl](https://github.com/maptiler/tileserver-gl) - Vector and raster tile server
 - [contour-generator](https://github.com/acalcutt/contour-generator) - Batch contour tile generation tool
+
 
