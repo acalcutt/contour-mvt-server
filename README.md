@@ -53,9 +53,7 @@ Create a `config.json` file to define your terrain sources and contour options:
   "blankTileFormat": "png",
   "sources": {
     "terrain-rgb": {
-      "tiles": [
-        "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png"
-      ],
+      "tiles": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png",
       "encoding": "terrarium",
       "maxzoom": 15,
       "contours": {
@@ -69,9 +67,7 @@ Create a `config.json` file to define your terrain sources and contour options:
       }
     },
     "mapzen-detailed": {
-      "tiles": [
-        "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png"
-      ],
+      "tiles": "https://s3.amazonaws.com/elevation-ties-prod/terrarium/{z}/{x}/{y}.png",
       "encoding": "terrarium",
       "maxzoom": 15,
       "contours": {
@@ -90,16 +86,12 @@ Create a `config.json` file to define your terrain sources and contour options:
       }
     },
     "terrain-pmtiles": {
-      "tiles": [
-        "pmtiles://https://example.com/terrain.pmtiles"
-      ],
+      "tiles": "pmtiles://https://example.com/terrain.pmtiles",
       "encoding": "terrarium",
       "maxzoom": 14
     },
     "local-terrain": {
-      "tiles": [
-        "mbtiles:///var/data/terrain.mbtiles"
-      ],
+      "tiles": "mbtiles:///var/data/terrain.mbtiles",
       "encoding": "mapbox",
       "maxzoom": 12,
       "blankTileNoDataValue": -10000
@@ -129,7 +121,7 @@ Standard tile server URLs with `{z}`, `{x}`, `{y}` placeholders:
 
 ```json
 {
-  "tiles": ["https://example.com/dem/{z}/{x}/{y}.png"]
+  "tiles": "https://example.com/dem/{z}/{x}/{y}.png"
 }
 ```
 
@@ -140,21 +132,21 @@ PMTiles archives can be served from local files or remote HTTP(S) URLs:
 **Remote PMTiles (HTTP/HTTPS):**
 ```json
 {
-  "tiles": ["pmtiles://https://example.com/terrain.pmtiles"]
+  "tiles": "pmtiles://https://example.com/terrain.pmtiles"
 }
 ```
 
 **Local PMTiles (Linux/macOS):**
 ```json
 {
-  "tiles": ["pmtiles:///absolute/path/to/terrain.pmtiles"]
+  "tiles": "pmtiles:///absolute/path/to/terrain.pmtiles"
 }
 ```
 
 **Local PMTiles (Windows):**
 ```json
 {
-  "tiles": ["pmtiles://C://path//to//terrain.pmtiles"]
+  "tiles": "pmtiles://C://path//to//terrain.pmtiles"
 }
 ```
 
@@ -167,14 +159,14 @@ MBTiles databases (local files only):
 **Local MBTiles (Linux/macOS):**
 ```json
 {
-  "tiles": ["mbtiles:///absolute/path/to/terrain.mbtiles"]
+  "tiles": "mbtiles:///absolute/path/to/terrain.mbtiles"
 }
 ```
 
 **Local MBTiles (Windows):**
 ```json
 {
-  "tiles": ["mbtiles://C://path//to//terrain.mbtiles"]
+  "tiles": "mbtiles://C://path//to//terrain.mbtiles"
 }
 ```
 
@@ -186,7 +178,7 @@ Each source in the `sources` object supports the following options:
 
 #### Required Options
 
-- **`tiles`** (array) - Array of tile URLs. Only the first URL is used. Supports HTTP(S), PMTiles, and MBTiles formats
+- **`tiles`** (string) - Tile URL or path. Supports HTTP(S), PMTiles, and MBTiles formats
 - **`encoding`** (string) - DEM encoding format: `"terrarium"` or `"mapbox"`
 
 #### Optional Options
@@ -217,13 +209,13 @@ Example configuration with blank tile settings:
   "blankTileFormat": "png",
   "sources": {
     "high-res-terrain": {
-      "tiles": ["pmtiles:///data/terrain-high.pmtiles"],
+      "tiles": "pmtiles:///data/terrain-high.pmtiles",
       "encoding": "terrarium",
       "blankTileNoDataValue": -32768,
       "blankTileFormat": "webp"
     },
     "low-res-terrain": {
-      "tiles": ["mbtiles:///data/terrain-low.mbtiles"],
+      "tiles": "mbtiles:///data/terrain-low.mbtiles",
       "encoding": "mapbox"
       // Uses global blank tile settings
     }
@@ -275,6 +267,13 @@ Returns a gzipped Mapbox Vector Tile containing contour lines for the specified 
 - `Content-Type: application/x-protobuf`
 - `Content-Encoding: gzip`
 
+**Response Status Codes:**
+- `200` - Success (tile generated)
+- `204` - No content (empty tile)
+- `404` - Source not found
+- `400` - Invalid tile coordinates
+- `500` - Server error
+
 ### Health Check
 
 ```
@@ -305,7 +304,7 @@ Returns detailed information about all configured sources, including their setti
 {
   "terrain-rgb": {
     "type": "contour",
-    "tiles": ["https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png"],
+    "tiles": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png",
     "encoding": "terrarium",
     "maxzoom": 15,
     "contours": {

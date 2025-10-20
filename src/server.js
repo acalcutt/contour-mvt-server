@@ -85,19 +85,26 @@ function loadConfig(configPath) {
     // Set global blank tile defaults
     GLOBAL_BLANK_TILE_SETTINGS = {
       blankTileNoDataValue: parsedConfig.blankTileNoDataValue ?? 0,
-      blankTileSize: parsedConfig.blankTileSize ?? 256, // Default to 256 if not specified
-      blankTileFormat: parsedConfig.blankTileFormat ?? 'png' // Default to 'png'
+      blankTileSize: parsedConfig.blankTileSize ?? 256,
+      blankTileFormat: parsedConfig.blankTileFormat ?? 'png'
     };
     
     for (const [name, source] of Object.entries(parsedConfig.sources)) {
-      if (!source.tiles || !Array.isArray(source.tiles) || source.tiles.length === 0) {
-        throw new Error(`Source "${name}" must have a non-empty tiles array`);
+      // Normalize tiles to always be a string (accept both string and array)
+      if (Array.isArray(source.tiles)) {
+        if (source.tiles.length === 0) {
+          throw new Error(`Source "${name}" must have a non-empty tiles value`);
+        }
+        source.tiles = source.tiles[0]; // Use first element if array
+      } else if (typeof source.tiles !== 'string') {
+        throw new Error(`Source "${name}" tiles must be a string or array`);
       }
+      
       if (!source.encoding) {
         throw new Error(`Source "${name}" must specify encoding (e.g., "terrarium" or "mapbox")`);
       }
       
-      const demUrl = source.tiles[0];
+      const demUrl = source.tiles;
 
       if (pmtilesTester.test(demUrl)) {
         const actualPathOrUrl = demUrl.replace(pmtilesTester, "");
@@ -155,12 +162,12 @@ const pmtilesCache = new Map();
 const mbtilesCache = new Map();
 
 // Initialize DEM managers for each source
-async function setupContourEndpoints(currentConfig) { // Renamed param to avoid conflict
-  const currentContourSources = {}; // Renamed to avoid global conflict
+async function setupContourEndpoints(currentConfig) {
+  const currentContourSources = {};
   
   for (const [sourceName, source] of Object.entries(currentConfig.sources)) {
     const contourOptions = getContourOptions(source);
-    const demUrl = source.tiles[0]; 
+    const demUrl = source.tiles; // Now always a string
     
     let demManagerOptions = {
       cacheSize: source.cacheSize || 100,
@@ -206,11 +213,10 @@ async function setupContourEndpoints(currentConfig) { // Renamed param to avoid 
       };
       demManagerOptions.demUrlPattern = '/{z}/{x}/{y}'; 
       
-      console.log(`✓ Configured PMTiles contour source: ${sourceName} from ${pmtilesActualPathOrUrl}`);
+      console.log(`✓ Configured PMTiles terrain source: ${sourceName} from ${pmtilesActualPathOrUrl}`);
 
     } else if (mbtilesTester.test(demUrl)) {
       const mbtilesActualPath = demUrl.replace(mbtilesTester, "");
-      // Pass the full mbtiles:// URI to openMBTiles
       mbtilesHandle = (await openMBTiles(demUrl)).handle;
       mbtilesCache.set(sourceName, mbtilesHandle); 
 
@@ -236,12 +242,12 @@ async function setupContourEndpoints(currentConfig) { // Renamed param to avoid 
       };
       demManagerOptions.demUrlPattern = '/{z}/{x}/{y}'; 
 
-      console.log(`✓ Configured MBTiles contour source: ${sourceName} from ${mbtilesActualPath}`);
+      console.log(`✓ Configured MBTiles terrain source: ${sourceName} from ${mbtilesActualPath}`);
 
     } else {
       // Default HTTP DEM tile fetching (URLs starting with http(s)://)
       demManagerOptions.demUrlPattern = demUrl;
-      console.log(`✓ Configured HTTP DEM contour source: ${sourceName} from ${demUrl}`);
+      console.log(`✓ Configured HTTP DEM terrain source: ${sourceName} from ${demUrl}`);
     }
     
     // Always create a LocalDemManager
@@ -386,7 +392,7 @@ server = app.listen(port, () => {
   console.log(`\n🗺️  Contour Server running on port ${port}`);
   console.log(`   Health check: http://localhost:${port}/health`);
   console.log(`   Sources list: http://localhost:${port}/sources`);
-  console.log('\nConfigured endpoints:');
+  console.log('\nConfigured contour endpoints:');
   Object.keys(config.sources).forEach(name => {
     console.log(`   -> ${name}: http://localhost:${port}/contours/${name}/{z}/{x}/{y}.pbf`);
   });
