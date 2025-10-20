@@ -73,7 +73,7 @@ Create a `config.json` file to define your terrain sources and contour options:
         "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png"
       ],
       "encoding": "terrarium",
-      "maxzoom": 14,
+      "maxzoom": 15,
       "contours": {
         "multiplier": 1,
         "thresholds": {
