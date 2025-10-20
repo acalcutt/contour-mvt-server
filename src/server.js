@@ -388,10 +388,9 @@ server = app.listen(port, () => {
   console.log(`\n🗺️  Contour Server running on port ${port}`);
   console.log(`   Health check: http://localhost:${port}/health`);
   console.log(`   Sources list: http://localhost:${port}/sources`);
-  console.log('\nConfigured sources:');
-  Object.keys(contourSources).forEach(name => {
-    const sourceData = contourSources[name];
-    console.log(`   - ${name} (DEM: ${sourceData.sourceConfig.tiles[0]}): http://localhost:${port}/contours/${name}/{z}/{x}/{y}.pbf`);
+  console.log('\nConfigured endpoints:');
+  Object.keys(config.sources).forEach(name => {
+    console.log(`   - ${name}: http://localhost:${port}/contours/${name}/{z}/{x}/{y}.pbf`);
   });
 });
 
