@@ -1,76 +1,5 @@
 {
   "sources": {
-    "terrarium-local-pmtiles": {
-      "type": "raster-dem",
-      "tiles": ["pmtiles://C://Users//Andrew//Desktop//Junk//tile_data//pmtiles//GEBCO_2024_terrainrgb_z0-Z8_webp.pmtiles"],
-      "encoding": "terrarium",
-      "maxzoom": 8,
-      "contours": {
-        "multiplier": 1,
-        "thresholds": {
-          "1": [2000, 10000],
-          "6": [500, 2500],
-          "9": [200, 1000],
-          "11": [100, 500],
-          "13": [50, 250],
-          "15": [20, 100],
-          "17": [10, 50]
-        },
-        "contourLayer": "contours",
-        "elevationKey": "ele",
-        "levelKey": "level",
-        "extent": 4096,
-        "buffer": 1
-      }
-    },
-    "terrarium-local-mbtiles": {
-      "type": "raster-dem",
-      "tiles": ["mbtiles://C://Users//Andrew//Desktop//Junk//tile_data//mbtiles//GEBCO_2024_terrainrgb_z0-Z8_webp.mbtiles"],
-      "encoding": "terrarium",
-      "maxzoom": 8,
-      "contours": {
-        "multiplier": 1,
-        "thresholds": {
-          "1": [2000, 10000],
-          "6": [500, 2500],
-          "9": [200, 1000],
-          "11": [100, 500],
-          "13": [50, 250],
-          "15": [20, 100],
-          "17": [10, 50]
-        },
-        "contourLayer": "contours",
-        "elevationKey": "ele",
-        "levelKey": "level",
-        "extent": 4096,
-        "buffer": 1
-      }
-    },
-    "terrain-rgb": {
-      "type": "raster-dem",
-      "tiles": ["https://tiles.wifidb.net/data/Planet_Merged_Sparse_2024_z0-Z16_cubic_webp/{z}/{x}/{y}.webp"],
-      "encoding": "mapbox",
-      "maxzoom": 12,
-      "contours": {
-        "multiplier": 1,
-        "thresholds": {
-          "1": [600, 3000],
-          "4": [300, 1500],
-          "8": [150, 750],
-          "9": [80, 400],
-          "10": [40, 200],
-          "11": [20, 100],
-          "12": [10, 50],
-          "14": [5, 25],
-          "16": [1, 5]
-        },
-        "contourLayer": "contours",
-        "elevationKey": "ele",
-        "levelKey": "level",
-        "extent": 4096,
-        "buffer": 1
-      }
-    },
     "mapzen-detailed": {
       "type": "raster-dem",
       "tiles": ["https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png"],
@@ -97,16 +26,7 @@
       }
     }
   },
-  "endpoints": {
-    "/contours/terrain": "terrain-rgb",
-    "/contours/detailed": "mapzen-detailed"
-  },
   "server": {
-    "port": 3000,
-    "cache": {
-      "enabled": true,
-      "type": "memory",
-      "maxSize": "500mb"
-    }
+    "port": 3000
   }
 }
