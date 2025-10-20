@@ -1,22 +1,33 @@
 // src/mbtiles-utils.js
 import MBTiles from "@mapbox/mbtiles";
 import { existsSync } from "node:fs";
-import path from "node:path"; // Added path for local file resolution
+import path from "node:path";
 
 export const mbtilesTester = /^mbtiles:\/\//i;
 
-export async function openMBTiles(FilePath, tileFileBaseDirectory = './data') { // Added base directory for local files
-  const fullPath = path.isAbsolute(FilePath) ? FilePath : path.join(tileFileBaseDirectory, FilePath);
+export async function openMBTiles(mbtilesUri) {
+  // Extract the actual file path from the mbtiles:// URI
+  let filePath = mbtilesUri.replace(mbtilesTester, "");
+  
+  // Normalize the path to handle Windows paths properly
+  // Replace double slashes with single slashes, but preserve the drive letter format
+  filePath = filePath.replace(/\/\//g, '/');
+  
+  // Convert to native path format (will use backslashes on Windows)
+  filePath = path.normalize(filePath);
 
-  if (!existsSync(fullPath)) {
-    throw new Error(`MBTiles file not found at: ${fullPath}`);
+  // Check if file exists
+  if (!existsSync(filePath)) {
+    throw new Error(`MBTiles file not found at: ${filePath}`);
   }
 
   return new Promise((resolve, reject) => {
-    new MBTiles(fullPath, (err, mbtilesHandle) => {
+    // Pass the normalized file path directly (not the mbtiles:// URI)
+    // @mapbox/mbtiles doesn't actually need the mbtiles:// prefix for local files
+    new MBTiles(filePath, (err, mbtilesHandle) => {
       if (err) {
         console.error(
-          `Failed to open MBTiles file ${fullPath}: ${err.message}`,
+          `Failed to open MBTiles file ${filePath}: ${err.message}`,
         );
         reject(err);
         return;
@@ -25,7 +36,7 @@ export async function openMBTiles(FilePath, tileFileBaseDirectory = './data') { 
       mbtilesHandle.getInfo((infoErr, info) => {
         if (infoErr) {
           console.warn(
-            `Could not retrieve MBTiles info for ${fullPath}: ${infoErr.message}`,
+            `Could not retrieve MBTiles info for ${filePath}: ${infoErr.message}`,
           );
           resolve({ handle: mbtilesHandle, metadata: undefined });
           return;

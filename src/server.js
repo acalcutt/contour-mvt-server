@@ -54,6 +54,19 @@ const DEFAULT_CONTOUR_OPTIONS = {
   }
 };
 
+// Helper function to check if a path is a local file path (Unix or Windows)
+function isLocalPath(pathStr) {
+  // Check for Unix absolute path
+  if (pathStr.startsWith('/')) {
+    return true;
+  }
+  // Check for Windows absolute path (e.g., C:/, C://, C:\, etc.)
+  if (/^[a-zA-Z]:[\\/]/.test(pathStr)) {
+    return true;
+  }
+  return false;
+}
+
 // --- Global variables for parsed config and contour sources ---
 let config = {};
 let contourSources = {};
@@ -88,13 +101,13 @@ function loadConfig(configPath) {
 
       if (pmtilesTester.test(demUrl)) {
         const actualPathOrUrl = demUrl.replace(pmtilesTester, "");
-        if (!actualPathOrUrl.startsWith('/') && !httpTester.test(actualPathOrUrl)) {
-          throw new Error(`Invalid PMTiles URL for source "${name}": ${demUrl}. Must be 'pmtiles:///local/path' or 'pmtiles://http(s)://url'`);
+        if (!isLocalPath(actualPathOrUrl) && !httpTester.test(actualPathOrUrl)) {
+          throw new Error(`Invalid PMTiles URL for source "${name}": ${demUrl}. Must be 'pmtiles:///local/path', 'pmtiles://C://path' (Windows), or 'pmtiles://http(s)://url'`);
         }
       } else if (mbtilesTester.test(demUrl)) {
         const actualPath = demUrl.replace(mbtilesTester, "");
-        if (!actualPath.startsWith('/')) {
-          throw new Error(`Invalid MBTiles URL for source "${name}": ${demUrl}. Must be 'mbtiles:///local/path'`);
+        if (!isLocalPath(actualPath)) {
+          throw new Error(`Invalid MBTiles URL for source "${name}": ${demUrl}. Must be 'mbtiles:///local/path' or 'mbtiles://C://path' (Windows)`);
         }
         if (!fs.existsSync(actualPath)) {
           throw new Error(`MBTiles file not found for source "${name}": ${actualPath}`);
@@ -197,7 +210,8 @@ async function setupContourEndpoints(currentConfig) { // Renamed param to avoid 
 
     } else if (mbtilesTester.test(demUrl)) {
       const mbtilesActualPath = demUrl.replace(mbtilesTester, "");
-      mbtilesHandle = (await openMBTiles(mbtilesActualPath)).handle;
+      // Pass the full mbtiles:// URI to openMBTiles
+      mbtilesHandle = (await openMBTiles(demUrl)).handle;
       mbtilesCache.set(sourceName, mbtilesHandle); 
 
       demManagerOptions.getTile = async (url, abortController) => {
