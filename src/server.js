@@ -253,8 +253,6 @@ async function setupContourEndpoints(currentConfig) { // Renamed param to avoid 
       contourOptions,
       sourceConfig: source, 
     };
-    
-    console.log(`  -> Endpoint: /contours/${sourceName}/{z}/{x}/{y}.pbf`);
   }
   
   return currentContourSources;
@@ -390,7 +388,7 @@ server = app.listen(port, () => {
   console.log(`   Sources list: http://localhost:${port}/sources`);
   console.log('\nConfigured endpoints:');
   Object.keys(config.sources).forEach(name => {
-    console.log(`   - ${name}: http://localhost:${port}/contours/${name}/{z}/{x}/{y}.pbf`);
+    console.log(`   -> ${name}: http://localhost:${port}/contours/${name}/{z}/{x}/{y}.pbf`);
   });
 });
 
