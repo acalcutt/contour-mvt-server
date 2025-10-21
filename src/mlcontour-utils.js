@@ -1,5 +1,5 @@
 import sharp from 'sharp';
-import mlcontour from 'maplibre-contour';
+import mlcontour from '@acalcutt/maplibre-contour';
 
 // Constants for Encoding (moved from server.js)
 const TERRARIUM_MULT = 256;

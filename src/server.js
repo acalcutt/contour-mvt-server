@@ -6,7 +6,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { promisify } from 'util';
 import { gzip } from 'zlib';
-import mlcontour from 'maplibre-contour';
+import mlcontour from '@acalcutt/maplibre-contour';
 import cors from 'cors';
 import {
   openPMtiles,
@@ -173,6 +173,8 @@ async function setupContourEndpoints(currentConfig) {
       cacheSize: source.cacheSize || 100,
       encoding: source.encoding,
       maxzoom: source.maxzoom || 14,
+      smooth: source.smooth || false,
+      round: source.round || true,
       timeoutMs: source.timeoutMs || 10000,
       decodeImage: GetImageData,
     };
